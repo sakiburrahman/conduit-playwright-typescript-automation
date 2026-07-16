@@ -15,7 +15,6 @@ Bootstrap the project, then run the full API + E2E suite:
 ./all-test-run.sh
 # or: npm run test:all:headed:parallel
 
-
 # or:
 
 npm run precommit:check
