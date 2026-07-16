@@ -942,7 +942,9 @@ These jobs stay green even when individual tests fail/skip (by design). Review r
 
 ### Auto-merge behavior
 
-Merges when the CI workflow concludes successfully for a same-repo PR (see `auto-merge.yml`).
+Merges when the CI workflow concludes successfully for a **same-repo pull_request** (see `auto-merge.yml`).
+
+**If Actions shows Auto-Merge as skipped / no-op:** that is expected when CI was triggered by `push` (direct push to `main`, or the CI run _after_ a merge). Auto-merge only acts on PR CI. Report email is **not** sent by Auto-Merge — it is sent by **CI → Merge Reports** and **Pre-Merge Check**.
 
 ### Local CI parity
 
@@ -957,18 +959,18 @@ CI=true HEADLESS=true ./all-test-run.sh
 
 ### CI troubleshooting
 
-| Problem                                | What to check                                                                                                                 |
-| -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| API / E2E auth failures                | With `DYNAMIC_USER=true`, auth is generated at run time; for fixed users verify `DEV_EMAIL` / `DEV_PASSWORD` / `DEV_USERNAME` |
-| Wrong UI or API host                   | Set `DEV_BASEURL` / `DEV_API_BASE_URL` repository variables (or rely on the web application defaults)                         |
-| Missing failure media                  | Inspect merged Playwright HTML / Allure / Ortoni combined artifacts                                                           |
-| Ortoni / Playwright missing a phase    | Confirm each job uploaded its `playwright-blob-*` artifact and `merge-reports` ran                                            |
-| Playwright report `EADDRINUSE` on 9323 | `npm run open:playwright-report` or `lsof -ti :9323 \| xargs kill`                                                            |
-| Ortoni / `sqlite3` in CI               | `npm ci` on Ubuntu usually builds bindings; merge job runs `npm rebuild sqlite3`                                              |
-| Auto-merge skipped                     | Branch protection, draft PR, failing checks, or merge conflicts                                                               |
-| TC-0019 expected-fail in reports       | **Expected** via `test.fail()` — CI job stays green; see [Known Gaps or Limitations](#known-gaps-or-limitations)              |
-| Email step skipped in Merge Reports    | Set `ENV_FILE` or dedicated `SEND_EMAIL_TO_USER` / `SEND_EMAIL_TO_USER_EMAIL` / `SMTP_*` repository secrets/variables         |
-| TC-0020 skipped in reports             | **Expected** — intentional `test.skip` for Skipped visibility in Playwright / Allure / Ortoni                                 |
+| Problem                                | What to check                                                                                                                   |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| API / E2E auth failures                | With `DYNAMIC_USER=true`, auth is generated at run time; for fixed users verify `DEV_EMAIL` / `DEV_PASSWORD` / `DEV_USERNAME`   |
+| Wrong UI or API host                   | Set `DEV_BASEURL` / `DEV_API_BASE_URL` repository variables (or rely on the web application defaults)                           |
+| Missing failure media                  | Inspect merged Playwright HTML / Allure / Ortoni combined artifacts                                                             |
+| Ortoni / Playwright missing a phase    | Confirm each job uploaded its `playwright-blob-*` artifact and `merge-reports` ran                                              |
+| Playwright report `EADDRINUSE` on 9323 | `npm run open:playwright-report` or `lsof -ti :9323 \| xargs kill`                                                              |
+| Ortoni / `sqlite3` in CI               | `npm ci` on Ubuntu usually builds bindings; merge job runs `npm rebuild sqlite3`                                                |
+| Auto-merge skipped / no-op             | Expected after push-to-main; only merges after **pull_request** CI. Email is from CI Merge Reports / Pre-Merge, not Auto-Merge. |
+| TC-0019 expected-fail in reports       | **Expected** via `test.fail()` — CI job stays green; see [Known Gaps or Limitations](#known-gaps-or-limitations)                |
+| Email step skipped / failed            | Set secret `ENV_FILE` to full `.env` with `SEND_EMAIL_TO_USER=true`, recipient, and non-empty `SMTP_PASS` (Gmail App Password). |
+| TC-0020 skipped in reports             | **Expected** — intentional `test.skip` for Skipped visibility in Playwright / Allure / Ortoni                                   |
 
 ## Troubleshooting
 

@@ -2,6 +2,7 @@ import { execFileSync } from "child_process";
 import * as fs from "fs";
 import * as path from "path";
 
+import dotenv from "dotenv";
 import nodemailer from "nodemailer";
 
 import { parseBoolean } from "@/config/environment/envConfig";
@@ -14,11 +15,22 @@ import {
 } from "@/utils/reports-helper";
 
 const MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024;
+const ENV_PATH = path.resolve(process.cwd(), "src/config/environment/.env");
+
+/** Prefer committed-secret .env over empty CI placeholder env vars. */
+function loadEmailEnvFromDotenv(): void {
+  if (!fs.existsSync(ENV_PATH)) {
+    return;
+  }
+  dotenv.config({ path: ENV_PATH, override: true });
+}
 
 function requiredEnv(name: string): string {
   const value = process.env[name]?.trim();
   if (!value) {
-    throw new Error(`Missing required env var for email reports: ${name}`);
+    throw new Error(
+      `Missing required env var for email reports: ${name}. Set it in src/config/environment/.env (or GitHub secret ENV_FILE).`,
+    );
   }
   return value;
 }
@@ -120,6 +132,8 @@ function buildHtmlBody(options: {
 }
 
 export async function sendReportsEmailIfEnabled(): Promise<boolean> {
+  loadEmailEnvFromDotenv();
+
   const enabled = parseBoolean(process.env.SEND_EMAIL_TO_USER, false);
   if (!enabled) {
     Logger.logInfo("SEND_EMAIL_TO_USER is not true; skipping report email");

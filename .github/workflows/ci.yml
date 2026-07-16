@@ -408,15 +408,13 @@ jobs:
             api=${{ needs.test-api.result }};
             e2e-articles=${{ needs.test-e2e-articles.result }};
             e2e-settings=${{ needs.test-e2e-settings.result }}
-          SEND_EMAIL_TO_USER: ${{ vars.SEND_EMAIL_TO_USER || secrets.SEND_EMAIL_TO_USER }}
-          SEND_EMAIL_TO_USER_EMAIL: ${{ vars.SEND_EMAIL_TO_USER_EMAIL || secrets.SEND_EMAIL_TO_USER_EMAIL }}
-          SMTP_HOST: ${{ vars.SMTP_HOST || secrets.SMTP_HOST }}
-          SMTP_PORT: ${{ vars.SMTP_PORT || secrets.SMTP_PORT }}
-          SMTP_USER: ${{ vars.SMTP_USER || secrets.SMTP_USER }}
-          SMTP_PASS: ${{ secrets.SMTP_PASS }}
-          SMTP_FROM: ${{ vars.SMTP_FROM || secrets.SMTP_FROM }}
         run: |
-          # email-report-helper loads SEND_EMAIL_* / SMTP_* from workflow env or .env
+          if [ ! -f src/config/environment/.env ]; then
+            echo "No .env from ENV_FILE secret ? cannot email reports."
+            echo "Add repository secret ENV_FILE with full .env contents (including SMTP_PASS)."
+            exit 0
+          fi
+          # Loads SEND_EMAIL_* / SMTP_* from .env with override (ignores empty CI placeholders)
           npm run reports:email
 
   summarize:
