@@ -15,7 +15,6 @@ Bootstrap the project, then run the full API + E2E suite:
 ./all-test-run.sh
 # or: npm run test:all:headed:parallel
 
-
 # or:
 
 npm run precommit:check
@@ -34,8 +33,8 @@ npm run precommit:check
 
 | Requirement  | Details                                                                                                                           |
 | ------------ | --------------------------------------------------------------------------------------------------------------------------------- |
-| **Node.js**  | **18+** required · **22** recommended (matches CI)                                                                                |
-| **npm**      | **9+**                                                                                                                            |
+| **Node.js**  | **18+** required · **24** recommended (matches local / CI)                                                                        |
+| **npm**      | **9+** (current verified: **11.7**)                                                                                               |
 | **Git**      | Clone, hooks (`husky` / `prepare`)                                                                                                |
 | **OS**       | macOS, Linux, or Windows (bash / Git Bash for `./setup.sh` and `./all-test-run.sh`)                                               |
 | **Browsers** | Installed by `./setup.sh` (Chromium by default; Chrome used headed locally). Use `./setup.sh --browsers-all` for Firefox + WebKit |
@@ -52,9 +51,9 @@ npm run precommit:check
 Verify locally:
 
 ```bash
-node -v    # v18+ (v22 recommended)
-npm -v     # 9+
-git --version
+node -v    # v24.9.0 (18+ required; 24 recommended)
+npm -v     # 11.7.0 (9+ required)
+git --version   # 2.48.1+
 ```
 
 Then bootstrap with `./setup.sh` (see [Installation](#installation)).
@@ -821,76 +820,81 @@ CI targets the web application (`conduit.bondaracademy.com` / `conduit-api.bonda
 
 ### Workflow files
 
-| File                                                                               | Purpose                                                           |
-| ---------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
-| [`.github/workflows/ci.yml`](./.github/workflows/ci.yml)                           | Lint → API → E2E articles → E2E settings → merge reports → status |
-| [`.github/workflows/pre-merge-check.yml`](./.github/workflows/pre-merge-check.yml) | PR smoke: lint / typecheck / format / API                         |
-| [`.github/workflows/auto-merge.yml`](./.github/workflows/auto-merge.yml)           | Auto-merge same-repo PRs when CI succeeds                         |
+| File                                                                               | Purpose                                                                                        |
+| ---------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| [`.github/workflows/ci.yml`](./.github/workflows/ci.yml)                           | Lint → API → E2E articles → E2E settings → merge + email reports → summarize (always succeeds) |
+| [`.github/workflows/pre-merge-check.yml`](./.github/workflows/pre-merge-check.yml) | PR smoke: lint / typecheck / format / API                                                      |
+| [`.github/workflows/auto-merge.yml`](./.github/workflows/auto-merge.yml)           | Auto-merge same-repo PRs when CI succeeds                                                      |
 
 **Triggers:** push and pull request to `main` / `master` (auto-merge listens for successful CI `workflow_run`).
 
 ### What the main CI pipeline does
 
-1. **Lint Code** — `npm run lint`, `typecheck`, `format:check` (Node 22, `npm ci`)
-2. **Run API Tests** — phase `api`; uploads raw blob / Allure / Ortoni artifacts
-3. **Run E2E Article + Tag Tests** — phase `e2e-articles` (headless parallel)
-4. **Run E2E Settings Tests** — phase `e2e-settings` (`--workers=1`)
+1. **Lint Code** — `npm run lint`, `typecheck`, `format:check` (Node 24, `npm ci`)
+2. **Run API Tests** — phase `api`; uploads raw blob / Allure / Ortoni artifacts (`continue-on-error`)
+3. **Run E2E Article + Tag Tests** — phase `e2e-articles` (headless parallel; `continue-on-error`)
+4. **Run E2E Settings Tests** — phase `e2e-settings` (`--workers=1`; `continue-on-error`)
 5. **Merge Reports** (`if: always()`) — `npm run reports:merge`; uploads combined Playwright / Allure / Ortoni reports
-6. **Email reports** (`if: always()`) — when `SEND_EMAIL_TO_USER=true`, zips reports and emails `SEND_EMAIL_TO_USER_EMAIL` via SMTP
-7. **Check Test Status** — fails if lint or any test job failed
+6. **Email reports** (`if: always()`) — writes `.env` from secret `ENV_FILE`, then emails when `SEND_EMAIL_TO_USER=true`
+7. **Summarize Run** — prints pass/fail/skip job outcomes; **does not fail the workflow**
+
+Test outcomes (pass, fail, or skip) are recorded in reports and email. The CI workflow itself stays **successful** so merge + email always complete.
 
 Reports are never opened in CI. Per-phase raw artifacts use unique names (`playwright-blob-*`, `allure-results-*`, `ortoni-results-*`); finals use `*-report-combined`.
 
-### Configure repository variables and secrets
+### Configure repository secrets (`.env` in GitHub)
 
 Go to **Settings → Secrets and variables → Actions**.
 
-#### Variables (preferred for URLs)
+#### Required for email + CI config: `ENV_FILE`
+
+Store the **full contents** of your local `src/config/environment/.env` as a single repository secret named **`ENV_FILE`**.
+
+1. Copy your local `.env` (URLs, optional fixed-user creds, and email/SMTP block).
+2. GitHub → **Settings → Secrets and variables → Actions → New repository secret**
+3. Name: `ENV_FILE`
+4. Value: paste the entire `.env` file
+
+CI jobs write that secret to `src/config/environment/.env` at runtime (never committed). Email uses `SEND_EMAIL_TO_USER` / `SEND_EMAIL_TO_USER_EMAIL` / `SMTP_*` from that file.
+
+Example keys inside `ENV_FILE`:
+
+```env
+DEV_BASEURL=https://conduit.bondaracademy.com
+DEV_API_BASE_URL=https://conduit-api.bondaracademy.com
+SEND_EMAIL_TO_USER=true
+SEND_EMAIL_TO_USER_EMAIL=you@gmail.com
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=you@gmail.com
+SMTP_PASS=your-gmail-app-password
+SMTP_FROM=you@gmail.com
+```
+
+#### Optional URL overrides (if `ENV_FILE` is unset)
 
 | Name               | Purpose              | Default if unset                        |
 | ------------------ | -------------------- | --------------------------------------- |
 | `DEV_BASEURL`      | Conduit UI base URL  | `https://conduit.bondaracademy.com`     |
 | `DEV_API_BASE_URL` | Conduit API base URL | `https://conduit-api.bondaracademy.com` |
 
-#### Email report secrets / variables
-
-Set these so **Merge Reports → Email combined reports** can send after every CI run (push/PR). Values mirror local `.env`:
-
-| Name                       | Where              | Purpose                                       |
-| -------------------------- | ------------------ | --------------------------------------------- |
-| `SEND_EMAIL_TO_USER`       | Variable or Secret | `true` to enable email after merge            |
-| `SEND_EMAIL_TO_USER_EMAIL` | Variable or Secret | Recipient (e.g. `you@gmail.com`)              |
-| `SMTP_HOST`                | Secret             | e.g. `smtp.gmail.com`                         |
-| `SMTP_PORT`                | Secret             | e.g. `587`                                    |
-| `SMTP_USER`                | Secret             | SMTP login user                               |
-| `SMTP_PASS`                | Secret             | SMTP password / Gmail **App Password**        |
-| `SMTP_FROM`                | Secret             | Optional From address (defaults to SMTP_USER) |
-
-Local full suite uses the same keys from `src/config/environment/.env` when `SEND_EMAIL_TO_USER=true` (`npm run reports:email` / `all-test-run.sh`).
+Local full suite uses `src/config/environment/.env` the same way (`npm run reports:email` / `all-test-run.sh`).
 
 #### Secrets (optional / as needed)
 
-| Name                                          | Purpose                                                                      |
-| --------------------------------------------- | ---------------------------------------------------------------------------- |
-| `DEV_EMAIL` / `DEV_USERNAME` / `DEV_PASSWORD` | Fixed-user fallback when `DYNAMIC_USER=false` (CI defaults to dynamic users) |
+| Name                                          | Purpose                                                         |
+| --------------------------------------------- | --------------------------------------------------------------- |
+| `ENV_FILE`                                    | Full `.env` contents for CI (preferred — includes email + SMTP) |
+| `DEV_EMAIL` / `DEV_USERNAME` / `DEV_PASSWORD` | Only if not already inside `ENV_FILE` and `DYNAMIC_USER=false`  |
 
 Do **not** commit real passwords, `.env`, or `playwright/.auth/*`.
-
-Example secret values (use your own credentials):
-
-```
-DEV_EMAIL=your-email@example.com
-DEV_USERNAME=Your Display Username
-DEV_PASSWORD=YourPassword123
-```
-
-If you later run QA/UAT in CI, add matching `QA_*` / `UAT_*` variables/secrets the same way.
 
 ### CI execution settings
 
 Workflows set:
 
 ```yaml
+NODE_VERSION: "24"
 ENVIRONMENT: DEV
 DYNAMIC_USER: "true"
 HEADLESS: "true"
@@ -900,6 +904,8 @@ MULTI_PHASE_RUN: "true"
 ```
 
 Job details and artifact names are listed under [What the main CI pipeline does](#what-the-main-ci-pipeline-does).
+
+**Note:** Test pass/fail/skip does **not** fail the CI workflow (by design). Inspect combined report artifacts or the emailed zip for real outcomes. If you use [auto-merge](.github/workflows/auto-merge.yml), review carefully — workflow success no longer means all tests passed.
 
 ### Download artifacts after a run
 
@@ -925,9 +931,10 @@ Do **not** upload: `src/config/environment/.env`, `playwright/.auth/auth.json`, 
    - `Run API Tests`
    - `Run E2E Article + Tag Tests`
    - `Run E2E Settings Tests`
-   - `Check Test Status`
+   - `Merge Reports`
+   - `Summarize Run`
 
-Enable auto-merge only after these checks pass. Auto-merge skips draft PRs, conflicted PRs, and any failed required check.
+These jobs stay green even when individual tests fail/skip (by design). Review report artifacts or email for real pass/fail. Enable auto-merge only if you accept that workflow success ≠ all tests passed.
 
 ### Auto-merge behavior
 
@@ -956,7 +963,7 @@ CI=true HEADLESS=true ./all-test-run.sh
 | Ortoni / `sqlite3` in CI               | `npm ci` on Ubuntu usually builds bindings; merge job runs `npm rebuild sqlite3`                                              |
 | Auto-merge skipped                     | Branch protection, draft PR, failing checks, or merge conflicts                                                               |
 | TC-0019 expected-fail in reports       | **Expected** via `test.fail()` — CI job stays green; see [Known Gaps or Limitations](#known-gaps-or-limitations)              |
-| Email step skipped in Merge Reports    | Set `SEND_EMAIL_TO_USER=true` plus SMTP secrets/vars (Gmail needs an App Password)                                            |
+| Email step skipped in Merge Reports    | Set repository secret `ENV_FILE` to full `.env` with `SEND_EMAIL_TO_USER=true` + SMTP App Password                            |
 | TC-0020 skipped in reports             | **Expected** — intentional `test.skip` for Skipped visibility in Playwright / Allure / Ortoni                                 |
 
 ## Troubleshooting
@@ -981,8 +988,8 @@ Checklist:
 
 - [ ] Code pushed to GitHub
 - [ ] GitHub Actions workflows visible under **Actions** (see [GitHub Actions CI/CD](#github-actions-cicd))
-- [ ] Repository variables/secrets configured if fixed-user auth is needed (`DYNAMIC_USER=false`)
-- [ ] Email report secrets configured if you want CI to send reports (`SEND_EMAIL_TO_USER`, SMTP_*)
+- [ ] Repository secret `ENV_FILE` set to full `.env` contents (includes `SEND_EMAIL_TO_USER_EMAIL` + SMTP for CI email)
+- [ ] Repository variables/secrets configured if fixed-user auth is needed outside `ENV_FILE` (`DYNAMIC_USER=false`)
 - [ ] No `.env`, password, token, or auth state committed
 - [ ] README commands match `package.json`
 - [ ] Combined reports upload in CI (`playwright-report-combined`, `allure-report-combined`, `ortoni-report-combined`)
