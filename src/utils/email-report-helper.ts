@@ -131,6 +131,43 @@ function buildHtmlBody(options: {
 </html>`;
 }
 
+/**
+ * Resolve the ZIP to attach.
+ *
+ * When `REPORTS_ZIP_PATH` is set and the file exists the pre-built ZIP is used
+ * directly (e.g. a consolidated artifact downloaded from a previous job or
+ * another workflow run).  The caller owns that file and we must never delete
+ * it.  When the env var is absent, or when the pointed-to file does not exist,
+ * we fall back to creating a new ZIP from the local report directories.
+ *
+ * @returns `{ path, owned }` where `path` is the resolved ZIP file path (or
+ * `null` when no attachment should be sent, e.g. the file exceeds the size
+ * limit or no report directories exist), and `owned` is `true` only when this
+ * function created the ZIP — meaning the caller is responsible for deleting it
+ * after use.
+ */
+function resolveReportsZip(): { path: string | null; owned: boolean } {
+  const envZip = process.env.REPORTS_ZIP_PATH?.trim();
+  if (envZip) {
+    if (fs.existsSync(envZip)) {
+      const size = fs.statSync(envZip).size;
+      if (size > MAX_ATTACHMENT_BYTES) {
+        Logger.logWarning(
+          `Provided ZIP ${envZip} is ${(size / (1024 * 1024)).toFixed(1)} MB` +
+            ` (limit ${MAX_ATTACHMENT_BYTES / (1024 * 1024)} MB); sending summary email without attachment`,
+        );
+        return { path: null, owned: false };
+      }
+      Logger.logInfo(`Using pre-built reports ZIP: ${envZip}`);
+      return { path: envZip, owned: false };
+    }
+    Logger.logWarning(
+      `REPORTS_ZIP_PATH=${envZip} does not exist; falling back to creating ZIP from report directories`,
+    );
+  }
+  return { path: createReportsZip(), owned: true };
+}
+
 export async function sendReportsEmailIfEnabled(): Promise<boolean> {
   loadEmailEnvFromDotenv();
 
@@ -151,7 +188,7 @@ export async function sendReportsEmailIfEnabled(): Promise<boolean> {
     throw new Error(`Invalid SMTP_PORT: ${process.env.SMTP_PORT}`);
   }
 
-  const zipPath = createReportsZip();
+  const { path: zipPath, owned: zipOwned } = resolveReportsZip();
   const workflowUrl = buildWorkflowUrl();
   const subject = `[Conduit Playwright] Reports — ${
     process.env.GITHUB_REF_NAME ?? process.env.RUN_ID ?? "local"
@@ -192,7 +229,7 @@ export async function sendReportsEmailIfEnabled(): Promise<boolean> {
   });
 
   Logger.logSuccess(`Report email sent to ${to}`);
-  if (zipPath && fs.existsSync(zipPath)) {
+  if (zipPath && zipOwned && fs.existsSync(zipPath)) {
     fs.unlinkSync(zipPath);
   }
   return true;

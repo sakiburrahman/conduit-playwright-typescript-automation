@@ -10,6 +10,9 @@ concurrency:
   group: pre-merge-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 env:
   NODE_VERSION: "24"
   ENVIRONMENT: DEV
@@ -19,13 +22,250 @@ env:
   HEADLESS: "true"
   OPEN_REPORTS: "false"
   CI: "true"
+  MULTI_PHASE_RUN: "true"
+  KEEP_REPORT_RESULTS: "true"
   DEV_BASEURL: https://conduit.bondaracademy.com
   DEV_API_BASE_URL: https://conduit-api.bondaracademy.com
 
 jobs:
-  pre-merge:
-    name: Pre-Merge Smoke
+  quality-checks:
+    name: Quality Checks
     runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run ESLint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Check formatting
+        run: npm run format:check
+
+  api-tests:
+    name: API Tests
+    runs-on: ubuntu-latest
+    needs: quality-checks
+    env:
+      TEST_TYPE: api
+      REPORT_PHASE: api
+      ENV_FILE: ${{ secrets.ENV_FILE }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Write .env from GitHub secret
+        run: bash .github/scripts/write-env-from-secret.sh
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Prepare phase dirs
+        run: npm run reports:prepare
+
+      - name: Run API tests
+        id: run-tests
+        run: npm run test:dev:api
+        continue-on-error: true
+
+      - name: Upload Playwright blob - API
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pre-merge-playwright-blob-api
+          path: test-results/raw/playwright-blob/api/
+          retention-days: 3
+          if-no-files-found: ignore
+
+      - name: Upload Allure raw results - API
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pre-merge-allure-results-api
+          path: test-results/raw/allure/api/
+          retention-days: 3
+          if-no-files-found: ignore
+
+      - name: Upload Ortoni raw results - API
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pre-merge-ortoni-results-api
+          path: test-results/raw/ortoni/api/
+          retention-days: 3
+          if-no-files-found: ignore
+
+      - name: Fail job if tests did not pass
+        if: steps.run-tests.outcome != 'success'
+        run: |
+          echo "API tests outcome: ${{ steps.run-tests.outcome }}"
+          exit 1
+
+  e2e-article-tests:
+    name: E2E Article + Tag Tests
+    runs-on: ubuntu-latest
+    needs: quality-checks
+    env:
+      TEST_TYPE: e2e
+      REPORT_PHASE: e2e-articles
+      BROWSER: DesktopChrome
+      ENV_FILE: ${{ secrets.ENV_FILE }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Write .env from GitHub secret
+        run: bash .github/scripts/write-env-from-secret.sh
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Prepare phase dirs
+        run: npm run reports:prepare
+
+      - name: Run E2E article + tag tests
+        id: run-tests
+        run: npm run test:dev:e2e:chrome:headless:parallel
+        continue-on-error: true
+
+      - name: Upload Playwright blob - E2E articles
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pre-merge-playwright-blob-e2e-articles
+          path: test-results/raw/playwright-blob/e2e-articles/
+          retention-days: 3
+          if-no-files-found: ignore
+
+      - name: Upload Allure raw results - E2E articles
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pre-merge-allure-results-e2e-articles
+          path: test-results/raw/allure/e2e-articles/
+          retention-days: 3
+          if-no-files-found: ignore
+
+      - name: Upload Ortoni raw results - E2E articles
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pre-merge-ortoni-results-e2e-articles
+          path: test-results/raw/ortoni/e2e-articles/
+          retention-days: 3
+          if-no-files-found: ignore
+
+      - name: Fail job if tests did not pass
+        if: steps.run-tests.outcome != 'success'
+        run: |
+          echo "E2E article + tag tests outcome: ${{ steps.run-tests.outcome }}"
+          exit 1
+
+  e2e-settings-tests:
+    name: E2E Settings Tests
+    runs-on: ubuntu-latest
+    needs: quality-checks
+    env:
+      TEST_TYPE: e2e
+      REPORT_PHASE: e2e-settings
+      BROWSER: DesktopChrome
+      PARALLEL: "false"
+      WORKERS: "1"
+      ENV_FILE: ${{ secrets.ENV_FILE }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Write .env from GitHub secret
+        run: bash .github/scripts/write-env-from-secret.sh
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Prepare phase dirs
+        run: npm run reports:prepare
+
+      - name: Run E2E settings tests (1 worker)
+        id: run-tests
+        run: npm run test:dev:e2e:chrome:settings:headless
+        continue-on-error: true
+
+      - name: Upload Playwright blob - E2E settings
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pre-merge-playwright-blob-e2e-settings
+          path: test-results/raw/playwright-blob/e2e-settings/
+          retention-days: 3
+          if-no-files-found: ignore
+
+      - name: Upload Allure raw results - E2E settings
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pre-merge-allure-results-e2e-settings
+          path: test-results/raw/allure/e2e-settings/
+          retention-days: 3
+          if-no-files-found: ignore
+
+      - name: Upload Ortoni raw results - E2E settings
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pre-merge-ortoni-results-e2e-settings
+          path: test-results/raw/ortoni/e2e-settings/
+          retention-days: 3
+          if-no-files-found: ignore
+
+      - name: Fail job if tests did not pass
+        if: steps.run-tests.outcome != 'success'
+        run: |
+          echo "E2E settings tests outcome: ${{ steps.run-tests.outcome }}"
+          exit 1
+
+  finalize-reports:
+    name: Finalize Reports
+    runs-on: ubuntu-latest
+    needs: [api-tests, e2e-article-tests, e2e-settings-tests]
+    if: always()
     env:
       ENV_FILE: ${{ secrets.ENV_FILE }}
     steps:
@@ -44,54 +284,205 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Lint
-        run: npm run lint
+      - name: Rebuild sqlite3 for Ortoni
+        run: npm run rebuild:sqlite3
         continue-on-error: true
 
-      - name: Typecheck
-        run: npm run typecheck
-        continue-on-error: true
-
-      - name: Format check
-        run: npm run format:check
-        continue-on-error: true
-
-      - name: Install Playwright Chromium
-        run: npx playwright install --with-deps chromium
-
-      - name: Run API smoke
-        id: api-smoke
-        run: npm run test:dev:api
-        continue-on-error: true
-
-      - name: Generate Allure report (if results exist)
-        if: always()
-        continue-on-error: true
+      - name: Prepare empty merge workspace
         run: |
-          if [ -d test-results/allure-result ] || [ -d test-results/allure-results ]; then
-            npm run generate:allure || true
-          else
-            echo "No Allure raw results to generate"
-          fi
+          rm -rf test-results
+          mkdir -p \
+            test-results/raw/playwright-blob/api \
+            test-results/raw/playwright-blob/e2e-articles \
+            test-results/raw/playwright-blob/e2e-settings \
+            test-results/raw/allure/api \
+            test-results/raw/allure/e2e-articles \
+            test-results/raw/allure/e2e-settings \
+            test-results/raw/ortoni/api \
+            test-results/raw/ortoni/e2e-articles \
+            test-results/raw/ortoni/e2e-settings \
+            test-results/history
 
-      - name: Upload smoke artifacts
+      - name: Download Playwright blobs
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          pattern: pre-merge-playwright-blob-*
+          path: test-results/raw/playwright-blob/
+          merge-multiple: false
+
+      - name: Download Allure raw results
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          pattern: pre-merge-allure-results-*
+          path: test-results/raw/allure/
+          merge-multiple: false
+
+      - name: Download Ortoni raw results
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          pattern: pre-merge-ortoni-results-*
+          path: test-results/raw/ortoni/
+          merge-multiple: false
+
+      - name: Normalize artifact layouts
+        run: |
+          normalize_phase_dir() {
+            local artifact_prefix="$1"
+            local dest_base="$2"
+            local phase
+            for phase in api e2e-articles e2e-settings; do
+              local src="${dest_base}/${artifact_prefix}-${phase}"
+              local dest="${dest_base}/${phase}"
+              if [ -d "${src}" ]; then
+                mkdir -p "${dest}"
+                cp -R "${src}"/. "${dest}"/ || echo "Warning: Failed to copy ${src} to ${dest}"
+              fi
+            done
+          }
+          normalize_phase_dir "pre-merge-playwright-blob" "test-results/raw/playwright-blob"
+          normalize_phase_dir "pre-merge-allure-results"  "test-results/raw/allure"
+          normalize_phase_dir "pre-merge-ortoni-results"  "test-results/raw/ortoni"
+          find test-results/raw/playwright-blob -name '*.zip' -print
+
+      - name: Merge all reports
+        run: npm run reports:merge
+        continue-on-error: true
+
+      - name: Archive under history run folder
+        env:
+          RUN_ID: pre-merge-${{ github.run_id }}-${{ github.run_attempt }}
+        run: npm run reports:archive
+        continue-on-error: true
+
+      - name: Create consolidated reports ZIP
+        if: always()
+        run: bash .github/scripts/create-consolidated-zip.sh
+
+      - name: Upload consolidated reports ZIP
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: pre-merge-test-results
-          path: test-results/
+          name: pre-merge-consolidated-reports-zip
+          path: test-results/consolidated-reports.zip
           retention-days: 7
           if-no-files-found: ignore
 
-      - name: Email report zip to SEND_EMAIL_TO_USER_EMAIL
+      - name: Upload Playwright HTML report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pre-merge-playwright-report
+          path: test-results/playwright-report/
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: Upload Allure report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pre-merge-allure-report
+          path: test-results/allure-report/
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: Upload Ortoni report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pre-merge-ortoni-report
+          path: test-results/ortoni-report/
+          retention-days: 7
+          if-no-files-found: ignore
+
+  email-pre-merge-result:
+    name: Email Pre-Merge Result
+    runs-on: ubuntu-latest
+    needs:
+      - quality-checks
+      - api-tests
+      - e2e-article-tests
+      - e2e-settings-tests
+      - finalize-reports
+    if: always()
+    env:
+      ENV_FILE: ${{ secrets.ENV_FILE }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Write .env from GitHub secret
+        run: bash .github/scripts/write-env-from-secret.sh
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Download consolidated reports ZIP
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: pre-merge-consolidated-reports-zip
+          path: /tmp/pre-merge-reports
+
+      - name: Send email
         if: always()
         continue-on-error: true
         env:
           RUN_ID: pre-merge-${{ github.run_id }}-${{ github.run_attempt }}
-          EMAIL_REPORT_STATUS: "pre-merge api-smoke=${{ steps.api-smoke.outcome }}"
+          EMAIL_REPORT_STATUS: >-
+            quality-checks=${{ needs.quality-checks.result }};
+            api-tests=${{ needs.api-tests.result }};
+            e2e-article-tests=${{ needs.e2e-article-tests.result }};
+            e2e-settings-tests=${{ needs.e2e-settings-tests.result }}
+          REPORTS_ZIP_PATH: /tmp/pre-merge-reports/consolidated-reports.zip
         run: |
           if [ ! -f src/config/environment/.env ]; then
             echo "No .env from ENV_FILE secret — cannot email reports."
+            echo "Add repository secret ENV_FILE with full .env contents (including SMTP_PASS)."
             exit 0
           fi
           npm run reports:email
+
+  check-test-status:
+    name: Check Test Status
+    runs-on: ubuntu-latest
+    needs:
+      - quality-checks
+      - api-tests
+      - e2e-article-tests
+      - e2e-settings-tests
+    if: always()
+    steps:
+      - name: Evaluate results and set required-check status
+        run: |
+          QUALITY="${{ needs.quality-checks.result }}"
+          API="${{ needs.api-tests.result }}"
+          ARTICLES="${{ needs.e2e-article-tests.result }}"
+          SETTINGS="${{ needs.e2e-settings-tests.result }}"
+
+          echo "quality-checks:      ${QUALITY}"
+          echo "api-tests:           ${API}"
+          echo "e2e-article-tests:   ${ARTICLES}"
+          echo "e2e-settings-tests:  ${SETTINGS}"
+
+          FAILED=0
+          for result in "$QUALITY" "$API" "$ARTICLES" "$SETTINGS"; do
+            if [ "${result}" != "success" ]; then
+              FAILED=1
+            fi
+          done
+
+          if [ "${FAILED}" -eq 1 ]; then
+            echo "::error::One or more required jobs did not succeed."
+            exit 1
+          fi
+
+          echo "All required checks passed."
