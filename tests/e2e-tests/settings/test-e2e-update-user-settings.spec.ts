@@ -197,10 +197,6 @@ test.describe("Test Update User Settings Functionality", () => {
       },
     );
 
-    test.fail(
-      true,
-      "Known product defect: invalid profile picture URL is still accepted (CONDUIT-TC-0019 expected fail until the web application is fixed)",
-    );
     test(
       "CONDUIT-TC-0019: Verify that invalid profile picture URL should not be accepted",
       {
@@ -216,6 +212,11 @@ test.describe("Test Update User Settings Functionality", () => {
         },
       },
       async ({ page, generatedUser, settingsActions }) => {
+        test.fail(
+          true,
+          "Known product defect: invalid profile picture URL is still accepted (CONDUIT-TC-0019 expected fail until the web application is fixed)",
+        );
+
         page.once("dialog", () => {
           throw new Error("Unexpected dialog for invalid profile image URL");
         });
