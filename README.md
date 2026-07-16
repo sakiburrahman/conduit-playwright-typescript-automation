@@ -835,7 +835,7 @@ CI targets the web application (`conduit.bondaracademy.com` / `conduit-api.bonda
 3. **Run E2E Article + Tag Tests** — phase `e2e-articles` (headless parallel; `continue-on-error`)
 4. **Run E2E Settings Tests** — phase `e2e-settings` (`--workers=1`; `continue-on-error`)
 5. **Merge Reports** (`if: always()`) — `npm run reports:merge`; uploads combined Playwright / Allure / Ortoni reports
-6. **Email reports** (`if: always()`) — writes `.env` from secret `ENV_FILE`, then emails when `SEND_EMAIL_TO_USER=true`
+6. **Email reports** (`if: always()`) — emails when `SEND_EMAIL_TO_USER=true`, using workflow secrets/variables or `ENV_FILE`
 7. **Summarize Run** — prints pass/fail/skip job outcomes; **does not fail the workflow**
 
 Test outcomes (pass, fail, or skip) are recorded in reports and email. The CI workflow itself stays **successful** so merge + email always complete.
@@ -846,7 +846,7 @@ Reports are never opened in CI. Per-phase raw artifacts use unique names (`playw
 
 Go to **Settings → Secrets and variables → Actions**.
 
-#### Required for email + CI config: `ENV_FILE`
+#### Preferred for full CI config: `ENV_FILE`
 
 Store the **full contents** of your local `src/config/environment/.env` as a single repository secret named **`ENV_FILE`**.
 
@@ -855,7 +855,7 @@ Store the **full contents** of your local `src/config/environment/.env` as a sin
 3. Name: `ENV_FILE`
 4. Value: paste the entire `.env` file
 
-CI jobs write that secret to `src/config/environment/.env` at runtime (never committed). Email uses `SEND_EMAIL_TO_USER` / `SEND_EMAIL_TO_USER_EMAIL` / `SMTP_*` from that file.
+CI jobs write that secret to `src/config/environment/.env` at runtime (never committed). Email can use `SEND_EMAIL_TO_USER` / `SEND_EMAIL_TO_USER_EMAIL` / `SMTP_*` from that file, or from dedicated repository secrets/variables with the same names.
 
 Example keys inside `ENV_FILE`:
 
@@ -885,6 +885,10 @@ Local full suite uses `src/config/environment/.env` the same way (`npm run repor
 | Name                                          | Purpose                                                         |
 | --------------------------------------------- | --------------------------------------------------------------- |
 | `ENV_FILE`                                    | Full `.env` contents for CI (preferred — includes email + SMTP) |
+| `SEND_EMAIL_TO_USER`                          | Optional flag to enable CI report email without `ENV_FILE`      |
+| `SEND_EMAIL_TO_USER_EMAIL`                    | Optional CI recipient email without `ENV_FILE`                  |
+| `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER`       | Optional CI SMTP settings without `ENV_FILE`                    |
+| `SMTP_PASS` / `SMTP_FROM`                     | Optional CI SMTP auth/sender without `ENV_FILE`                 |
 | `DEV_EMAIL` / `DEV_USERNAME` / `DEV_PASSWORD` | Only if not already inside `ENV_FILE` and `DYNAMIC_USER=false`  |
 
 Do **not** commit real passwords, `.env`, or `playwright/.auth/*`.
@@ -963,24 +967,24 @@ CI=true HEADLESS=true ./all-test-run.sh
 | Ortoni / `sqlite3` in CI               | `npm ci` on Ubuntu usually builds bindings; merge job runs `npm rebuild sqlite3`                                              |
 | Auto-merge skipped                     | Branch protection, draft PR, failing checks, or merge conflicts                                                               |
 | TC-0019 expected-fail in reports       | **Expected** via `test.fail()` — CI job stays green; see [Known Gaps or Limitations](#known-gaps-or-limitations)              |
-| Email step skipped in Merge Reports    | Set repository secret `ENV_FILE` to full `.env` with `SEND_EMAIL_TO_USER=true` + SMTP App Password                            |
+| Email step skipped in Merge Reports    | Set `ENV_FILE` or dedicated `SEND_EMAIL_TO_USER` / `SEND_EMAIL_TO_USER_EMAIL` / `SMTP_*` repository secrets/variables         |
 | TC-0020 skipped in reports             | **Expected** — intentional `test.skip` for Skipped visibility in Playwright / Allure / Ortoni                                 |
 
 ## Troubleshooting
 
-| Issue                                       | Fix                                                                                                               |
-| ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| Ortoni / `sqlite3`                          | `npm rebuild sqlite3`                                                                                             |
-| Auth / username mismatch                    | Confirm `.env` credentials when `DYNAMIC_USER=false`                                                              |
-| Blank E2E page                              | Confirm `user-setup` produced `playwright/.auth/auth.json`                                                        |
-| Missing browser                             | `npx playwright install`                                                                                          |
-| Settings flaking in parallel                | Run `npm run test:dev:e2e:chrome:settings` only                                                                   |
-| TC-0019 shows as **Failed** / expected-fail | **Expected** — `test.fail()` documents the invalid profile URL defect; suite/CI stay green                        |
-| TC-0019 shows as unexpected **Passed**      | App may have been fixed — remove `test.fail` after confirming, or check a stale report                            |
-| Report email not received                   | Confirm `SEND_EMAIL_TO_USER=true`, recipient, and SMTP App Password (local `.env` or CI secrets)                  |
-| TC-0020 shows as **Skipped**                | **Expected** — intentional skip so reports demonstrate skipped-test inclusion                                     |
-| TC-0020 shows as **Passed**                 | Unexpected while `test.skip` is in place — check for a local edit that re-enabled the test                        |
-| CI artifact download empty                  | Download `*-report-combined` or per-phase `playwright-blob-*` / `allure-results-*` / `ortoni-results-*` artifacts |
+| Issue                                       | Fix                                                                                                                           |
+| ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| Ortoni / `sqlite3`                          | `npm rebuild sqlite3`                                                                                                         |
+| Auth / username mismatch                    | Confirm `.env` credentials when `DYNAMIC_USER=false`                                                                          |
+| Blank E2E page                              | Confirm `user-setup` produced `playwright/.auth/auth.json`                                                                    |
+| Missing browser                             | `npx playwright install`                                                                                                      |
+| Settings flaking in parallel                | Run `npm run test:dev:e2e:chrome:settings` only                                                                               |
+| TC-0019 shows as **Failed** / expected-fail | **Expected** — `test.fail()` documents the invalid profile URL defect; suite/CI stay green                                    |
+| TC-0019 shows as unexpected **Passed**      | App may have been fixed — remove `test.fail` after confirming, or check a stale report                                        |
+| Report email not received                   | Confirm `SEND_EMAIL_TO_USER=true`, recipient, and SMTP settings (local `.env`, `ENV_FILE`, or dedicated CI secrets/variables) |
+| TC-0020 shows as **Skipped**                | **Expected** — intentional skip so reports demonstrate skipped-test inclusion                                                 |
+| TC-0020 shows as **Passed**                 | Unexpected while `test.skip` is in place — check for a local edit that re-enabled the test                                    |
+| CI artifact download empty                  | Download `*-report-combined` or per-phase `playwright-blob-*` / `allure-results-*` / `ortoni-results-*` artifacts             |
 
 ## Submission Instructions
 
@@ -988,7 +992,7 @@ Checklist:
 
 - [ ] Code pushed to GitHub
 - [ ] GitHub Actions workflows visible under **Actions** (see [GitHub Actions CI/CD](#github-actions-cicd))
-- [ ] Repository secret `ENV_FILE` set to full `.env` contents (includes `SEND_EMAIL_TO_USER_EMAIL` + SMTP for CI email)
+- [ ] Repository secret `ENV_FILE` set to full `.env` contents, or dedicated CI email secrets/variables configured
 - [ ] Repository variables/secrets configured if fixed-user auth is needed outside `ENV_FILE` (`DYNAMIC_USER=false`)
 - [ ] No `.env`, password, token, or auth state committed
 - [ ] README commands match `package.json`
