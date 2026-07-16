@@ -51,8 +51,8 @@ npm run precommit:check
 Verify locally:
 
 ```bash
-node -v    # v24.9.0 (18+ required; 24 recommended)
-npm -v     # 11.7.0 (9+ required)
+node -v    # v24.9.0 (22+ required; 24 recommended)
+npm -v     # 11.7.0 (10+ required)
 git --version   # 2.48.1+
 ```
 
