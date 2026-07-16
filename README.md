@@ -26,7 +26,7 @@ npm run precommit:check
 | `setup.sh` / `npm run setup`                                                      | Install deps, Playwright browsers, `.env`, Husky hooks, sqlite3                                                      |
 | `./all-test-run.sh` / `npm run test:all:run` / `npm run test:all:headed:parallel` | Full suite: API + articles/tags (Chrome headed, 8 workers), then settings (1 worker); merge reports and open locally |
 
-> **Expected failure (by design):** `CONDUIT-TC-0019` — _Verify that invalid profile picture URL should not be accepted_ — **must fail** on the current web application. **TC-0019 failed because the actual result did not match the expected behavior.** The test asserts the user stays on **Your Settings** after Update Settings; the web application incorrectly accepts the invalid URL and navigates to `/profile/...` (**My Posts**). A **Failed** result in Allure / Ortoni / Playwright HTML is the correct outcome and documents this product defect. A **Passed** result for TC-0019 is unexpected — see [Known Gaps or Limitations](#known-gaps-or-limitations).
+> **Expected failure (by design):** `CONDUIT-TC-0019` — _Verify that invalid profile picture URL should not be accepted_ — uses Playwright `test.fail()` so the assertion still documents the product defect (invalid URL accepted → `/profile`), while the **suite / CI job can stay green**. Reports still show the case as an expected failure. If TC-0019 unexpectedly **passes**, CI fails — see [Known Gaps or Limitations](#known-gaps-or-limitations).
 >
 > **Intentional skip (by design):** `CONDUIT-TC-0020` — _Verify that an invalid email address can not be accepted and the user can not update settings_ — is **`test.skip`’d** so Playwright HTML / Allure / Ortoni **include a Skipped row** in the consolidated report. Re-enable the test when validating invalid-email rejection on the web application.
 
@@ -236,7 +236,7 @@ The Global Feed card does not display the full article body. The body is validat
 3. For username updates, validate the Profile page heading and navbar username.
 4. Restore original settings.
 5. Settings tests run with **one worker** because they mutate shared user state.
-6. **`CONDUIT-TC-0019` (invalid profile picture URL)** — **expected to FAIL**. After an invalid image URL + Update Settings, the test requires staying on **Your Settings** (no `/profile` / **My Posts**). The web application accepts the URL and redirects, so Playwright reports **Failed**. That failure is intentional: it **catches the product defect**. A **Passed** TC-0019 is unexpected — see [Known Gaps or Limitations](#known-gaps-or-limitations).
+6. **`CONDUIT-TC-0019` (invalid profile picture URL)** — **expected to fail** via `test.fail()`. The web application still accepts the invalid URL; the test documents that defect. Suite/CI remain green while the failure is expected; unexpected **pass** fails CI — see [Known Gaps or Limitations](#known-gaps-or-limitations).
 7. **`CONDUIT-TC-0020` (invalid email)** — **intentionally SKIPPED** (`test.skip`) so consolidated reports include a **Skipped** result. Re-enable when validating invalid-email rejection — see [Known Gaps or Limitations](#known-gaps-or-limitations).
 
 ### QA-Driven Assertions
@@ -647,26 +647,24 @@ npx playwright test --grep="@E2ESettings" --project=e2e --workers=1
 
 ### E2E Settings Tests
 
-| ID              | Title                                                                                                 | Type                    | Expected result        |
-| --------------- | ----------------------------------------------------------------------------------------------------- | ----------------------- | ---------------------- |
-| CONDUIT-TC-0016 | Verify that a user can update existing password                                                       | Positive `@E2ESettings` | Pass                   |
-| CONDUIT-TC-0017 | Verify that a user can update existing username                                                       | Positive `@E2ESettings` | Pass                   |
-| CONDUIT-TC-0018 | Verify that Update Settings does not update the username when the username field contains only spaces | Negative `@E2ESettings` | Pass                   |
-| CONDUIT-TC-0019 | Verify that invalid profile picture URL should not be accepted                                        | Negative `@E2ESettings` | **FAIL (expected)**    |
-| CONDUIT-TC-0020 | Verify that an invalid email address can not be accepted and the user can not update settings         | Negative `@E2ESettings` | **SKIP (intentional)** |
+| ID              | Title                                                                                                 | Type                    | Expected result                 |
+| --------------- | ----------------------------------------------------------------------------------------------------- | ----------------------- | ------------------------------- |
+| CONDUIT-TC-0016 | Verify that a user can update existing password                                                       | Positive `@E2ESettings` | Pass                            |
+| CONDUIT-TC-0017 | Verify that a user can update existing username                                                       | Positive `@E2ESettings` | Pass                            |
+| CONDUIT-TC-0018 | Verify that Update Settings does not update the username when the username field contains only spaces | Negative `@E2ESettings` | Pass                            |
+| CONDUIT-TC-0019 | Verify that invalid profile picture URL should not be accepted                                        | Negative `@E2ESettings` | **Expected fail (`test.fail`)** |
+| CONDUIT-TC-0020 | Verify that an invalid email address can not be accepted and the user can not update settings         | Negative `@E2ESettings` | **SKIP (intentional)**          |
 
 ### CONDUIT-TC-0019 — expected failure (intentional)
 
-| Item                                       | Detail                                                                                                                                                                                   |
-| ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Title**                                  | Verify that invalid profile picture URL should not be accepted                                                                                                                           |
-| **Assertion**                              | After entering an invalid profile-picture URL and clicking **Update Settings**, the user must **remain on Your Settings** — must **not** navigate to `/profile/...` or show **My Posts** |
-| **Actual behavior of the web application** | Accepts invalid URLs (e.g. `https://kommodo.ai/i/...`) and redirects to the profile page                                                                                                 |
-| **Why it fails**                           | **TC-0019 failed because the actual result did not match the expected behavior** (the web application accepts the invalid URL; the test requires rejection and staying on Settings)      |
-| **Report outcome**                         | **Failed** = correct / expected (test caught the product defect)                                                                                                                         |
-| **Unexpected outcome**                     | **Passed** = investigate (app fixed, or stale/wrong report)                                                                                                                              |
+| Item                        | Detail                                                                              |
+| --------------------------- | ----------------------------------------------------------------------------------- |
+| **Marked with**             | Playwright `test.fail(...)` + annotation `expected-fail`                            |
+| **Why the assertion fails** | The web application accepts an invalid profile image URL and leaves Settings        |
+| **Suite / CI**              | Stays green while the failure is expected; **unexpected pass** fails the job        |
+| **Reports**                 | Still show the case as failed/expected-failed so the product defect remains visible |
 
-The suite continues after this failure (`maxFailures: 0`). Do not treat a full-suite run as “all green” if TC-0019 is the only red case — that red result is **required** for the current web application.
+Do not remove `test.fail` just to “clean” the report. If the web application starts rejecting invalid URLs, remove `test.fail` and keep the assertions.
 
 ### CONDUIT-TC-0020 — intentional skip (report visibility)
 
@@ -825,7 +823,8 @@ CI targets the web application (`conduit.bondaracademy.com` / `conduit-api.bonda
 3. **Run E2E Article + Tag Tests** — phase `e2e-articles` (headless parallel)
 4. **Run E2E Settings Tests** — phase `e2e-settings` (`--workers=1`)
 5. **Merge Reports** (`if: always()`) — `npm run reports:merge`; uploads combined Playwright / Allure / Ortoni reports
-6. **Check Test Status** — fails if lint or any test job failed
+6. **Email reports** (`if: always()`) — when `SEND_EMAIL_TO_USER=true`, zips reports and emails `SEND_EMAIL_TO_USER_EMAIL` via SMTP
+7. **Check Test Status** — fails if lint or any test job failed
 
 Reports are never opened in CI. Per-phase raw artifacts use unique names (`playwright-blob-*`, `allure-results-*`, `ortoni-results-*`); finals use `*-report-combined`.
 
@@ -839,6 +838,22 @@ Go to **Settings → Secrets and variables → Actions**.
 | ------------------ | -------------------- | --------------------------------------- |
 | `DEV_BASEURL`      | Conduit UI base URL  | `https://conduit.bondaracademy.com`     |
 | `DEV_API_BASE_URL` | Conduit API base URL | `https://conduit-api.bondaracademy.com` |
+
+#### Email report secrets / variables
+
+Set these so **Merge Reports → Email combined reports** can send after every CI run (push/PR). Values mirror local `.env`:
+
+| Name                       | Where              | Purpose                                       |
+| -------------------------- | ------------------ | --------------------------------------------- |
+| `SEND_EMAIL_TO_USER`       | Variable or Secret | `true` to enable email after merge            |
+| `SEND_EMAIL_TO_USER_EMAIL` | Variable or Secret | Recipient (e.g. `you@gmail.com`)              |
+| `SMTP_HOST`                | Secret             | e.g. `smtp.gmail.com`                         |
+| `SMTP_PORT`                | Secret             | e.g. `587`                                    |
+| `SMTP_USER`                | Secret             | SMTP login user                               |
+| `SMTP_PASS`                | Secret             | SMTP password / Gmail **App Password**        |
+| `SMTP_FROM`                | Secret             | Optional From address (defaults to SMTP_USER) |
+
+Local full suite uses the same keys from `src/config/environment/.env` when `SEND_EMAIL_TO_USER=true` (`npm run reports:email` / `all-test-run.sh`).
 
 #### Secrets (optional / as needed)
 
@@ -979,16 +994,16 @@ Md Sakibur Rahman
 
 ### CONDUIT-TC-0019 — expected to fail (catches a web application defect)
 
-**CONDUIT-TC-0019: Verify that invalid profile picture URL should not be accepted** is written so that a **Failed** status is the **expected / correct** report result on the current web application. **TC-0019 failed because the actual result did not match the expected behavior.**
+**CONDUIT-TC-0019: Verify that invalid profile picture URL should not be accepted** uses Playwright `test.fail()` so:
 
 1. Test inputs an invalid URL in **URL of profile picture**.
 2. Clicks **Update Settings**.
 3. Asserts the UI **stays on Your Settings** and does **not** open `/profile/...` (**My Posts**).
-4. The web application currently **accepts** the invalid URL and **navigates to the profile** → actual result ≠ expected behavior → test marked **Failed**.
+4. The web application currently **accepts** the invalid URL and **navigates to the profile** → assertion fails as expected.
 
-That failure is intentional: it **catches and documents** the product error. Do not “fix” or skip TC-0019 to make the suite green. If TC-0019 starts **passing**, re-check whether the web application was fixed or whether the report is stale.
+CI/suite stay green while that failure is expected. Reports still show the defect. If TC-0019 unexpectedly **passes**, remove `test.fail` after confirming the app was fixed.
 
-Remaining settings cases (TC-0016–0018) still run after TC-0019 fails. **TC-0020** remains **intentionally skipped** so reports show a Skipped result — see below.
+Remaining settings cases (TC-0016–0018) still run. **TC-0020** remains **intentionally skipped** so reports show a Skipped result — see below.
 
 ### CONDUIT-TC-0020 — intentionally skipped (shows Skipped in reports)
 

@@ -61,5 +61,6 @@ Thumbs.db
 
 # Misc local artifacts
 email-report.html
+conduit-reports.zip
 *.sqlite
 *.sqlite-journal

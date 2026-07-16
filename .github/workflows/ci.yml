@@ -389,6 +389,33 @@ jobs:
           retention-days: 30
           if-no-files-found: ignore
 
+      - name: Email combined reports
+        if: always()
+        continue-on-error: true
+        env:
+          SEND_EMAIL_TO_USER: ${{ vars.SEND_EMAIL_TO_USER || secrets.SEND_EMAIL_TO_USER }}
+          SEND_EMAIL_TO_USER_EMAIL: ${{ vars.SEND_EMAIL_TO_USER_EMAIL || secrets.SEND_EMAIL_TO_USER_EMAIL }}
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          SMTP_FROM: ${{ secrets.SMTP_FROM }}
+          RUN_ID: ci-${{ github.run_id }}-${{ github.run_attempt }}
+          EMAIL_REPORT_STATUS: >-
+            api=${{ needs.test-api.result }};
+            e2e-articles=${{ needs.test-e2e-articles.result }};
+            e2e-settings=${{ needs.test-e2e-settings.result }}
+        run: |
+          if [ "${SEND_EMAIL_TO_USER}" != "true" ]; then
+            echo "SEND_EMAIL_TO_USER is not true; skipping email"
+            exit 0
+          fi
+          if [ -z "${SEND_EMAIL_TO_USER_EMAIL}" ] || [ -z "${SMTP_HOST}" ] || [ -z "${SMTP_USER}" ] || [ -z "${SMTP_PASS}" ]; then
+            echo "Email reporting enabled but SMTP / recipient secrets are incomplete; skipping"
+            exit 0
+          fi
+          npm run reports:email
+
   check-status:
     name: Check Test Status
     runs-on: ubuntu-latest

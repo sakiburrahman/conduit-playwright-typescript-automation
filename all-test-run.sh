@@ -250,6 +250,18 @@ else
   record_report_result "Report archive" "$?"
 fi
 
+if [[ "${SEND_EMAIL_TO_USER:-false}" == "true" ]]; then
+  echo
+  echo "==> Emailing combined reports (SEND_EMAIL_TO_USER=true)..."
+  if npm_script_exists reports:email; then
+    run_command "Email reports" env RUN_ID="${RUN_ID}" EMAIL_REPORT_STATUS="local-suite" npm run reports:email
+    record_report_result "Report email" "$?"
+  else
+    run_command "Email reports" env RUN_ID="${RUN_ID}" npx tsx src/utils/email-report-helper.ts
+    record_report_result "Report email" "$?"
+  fi
+fi
+
 echo
 echo "Test execution summary (full suite)"
 
