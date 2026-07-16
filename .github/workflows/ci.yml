@@ -37,10 +37,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -67,13 +67,13 @@ jobs:
       ENV_FILE: ${{ secrets.ENV_FILE }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Write .env from GitHub secret
         run: bash .github/scripts/write-env-from-secret.sh
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -94,7 +94,7 @@ jobs:
 
       - name: Upload Playwright blob - API
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: playwright-blob-api
           path: test-results/raw/playwright-blob/api/
@@ -103,7 +103,7 @@ jobs:
 
       - name: Upload Allure raw results - API
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: allure-results-api
           path: test-results/raw/allure/api/
@@ -112,7 +112,7 @@ jobs:
 
       - name: Upload Ortoni raw results - API
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ortoni-results-api
           path: test-results/raw/ortoni/api/
@@ -136,13 +136,13 @@ jobs:
       ENV_FILE: ${{ secrets.ENV_FILE }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Write .env from GitHub secret
         run: bash .github/scripts/write-env-from-secret.sh
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -163,7 +163,7 @@ jobs:
 
       - name: Upload Playwright blob - E2E articles
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: playwright-blob-e2e-articles
           path: test-results/raw/playwright-blob/e2e-articles/
@@ -172,7 +172,7 @@ jobs:
 
       - name: Upload Allure raw results - E2E articles
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: allure-results-e2e-articles
           path: test-results/raw/allure/e2e-articles/
@@ -181,7 +181,7 @@ jobs:
 
       - name: Upload Ortoni raw results - E2E articles
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ortoni-results-e2e-articles
           path: test-results/raw/ortoni/e2e-articles/
@@ -207,13 +207,13 @@ jobs:
       ENV_FILE: ${{ secrets.ENV_FILE }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Write .env from GitHub secret
         run: bash .github/scripts/write-env-from-secret.sh
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -234,7 +234,7 @@ jobs:
 
       - name: Upload Playwright blob - E2E settings
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: playwright-blob-e2e-settings
           path: test-results/raw/playwright-blob/e2e-settings/
@@ -243,7 +243,7 @@ jobs:
 
       - name: Upload Allure raw results - E2E settings
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: allure-results-e2e-settings
           path: test-results/raw/allure/e2e-settings/
@@ -252,7 +252,7 @@ jobs:
 
       - name: Upload Ortoni raw results - E2E settings
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ortoni-results-e2e-settings
           path: test-results/raw/ortoni/e2e-settings/
@@ -274,13 +274,13 @@ jobs:
       ENV_FILE: ${{ secrets.ENV_FILE }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Write .env from GitHub secret
         run: bash .github/scripts/write-env-from-secret.sh
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -308,7 +308,7 @@ jobs:
             test-results/history
 
       - name: Download Playwright blobs
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         continue-on-error: true
         with:
           pattern: playwright-blob-*
@@ -328,7 +328,7 @@ jobs:
           find test-results/raw/playwright-blob -name '*.zip' -print
 
       - name: Download Allure raw results
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         continue-on-error: true
         with:
           pattern: allure-results-*
@@ -347,7 +347,7 @@ jobs:
           done
 
       - name: Download Ortoni raw results
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         continue-on-error: true
         with:
           pattern: ortoni-results-*
@@ -377,7 +377,7 @@ jobs:
 
       - name: Upload Playwright HTML report (combined)
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: playwright-report-combined
           path: test-results/playwright-report/
@@ -386,7 +386,7 @@ jobs:
 
       - name: Upload Allure report (combined)
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: allure-report-combined
           path: test-results/allure-report/
@@ -395,7 +395,7 @@ jobs:
 
       - name: Upload Ortoni report (combined)
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ortoni-report-combined
           path: test-results/ortoni-report/
@@ -408,7 +408,7 @@ jobs:
 
       - name: Upload consolidated reports ZIP
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: consolidated-reports-zip
           path: test-results/consolidated-reports.zip
@@ -424,13 +424,13 @@ jobs:
       ENV_FILE: ${{ secrets.ENV_FILE }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Write .env from GitHub secret
         run: bash .github/scripts/write-env-from-secret.sh
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -439,7 +439,7 @@ jobs:
         run: npm ci
 
       - name: Download consolidated reports ZIP
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         continue-on-error: true
         with:
           name: consolidated-reports-zip
