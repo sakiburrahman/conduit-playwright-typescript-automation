@@ -1,0 +1,415 @@
+name: CI - Run Tests and Generate Reports
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+    branches:
+      - main
+      - master
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: "22"
+  ENVIRONMENT: DEV
+  DYNAMIC_USER: "true"
+  PARALLEL: "true"
+  WORKERS: "2"
+  HEADLESS: "true"
+  OPEN_REPORTS: "false"
+  CI: "true"
+  MULTI_PHASE_RUN: "true"
+  KEEP_REPORT_RESULTS: "true"
+  DEV_BASEURL: https://conduit.bondaracademy.com
+  DEV_API_BASE_URL: https://conduit-api.bondaracademy.com
+
+jobs:
+  lint:
+    name: Lint Code
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run ESLint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Check formatting
+        run: npm run format:check
+
+  test-api:
+    name: Run API Tests
+    runs-on: ubuntu-latest
+    needs: lint
+    env:
+      TEST_TYPE: api
+      REPORT_PHASE: api
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Prepare phase dirs
+        run: npm run reports:prepare
+
+      - name: Run API tests
+        id: api-tests
+        run: npm run test:dev:api
+        continue-on-error: true
+
+      - name: Upload Playwright blob - API
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-blob-api
+          path: test-results/raw/playwright-blob/api/
+          retention-days: 14
+          if-no-files-found: ignore
+
+      - name: Upload Allure raw results - API
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: allure-results-api
+          path: test-results/raw/allure/api/
+          retention-days: 30
+          if-no-files-found: ignore
+
+      - name: Upload Ortoni raw results - API
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ortoni-results-api
+          path: test-results/raw/ortoni/api/
+          retention-days: 30
+          if-no-files-found: ignore
+
+      - name: Fail job if API tests failed
+        if: always()
+        run: |
+          if [ "${{ steps.api-tests.outcome }}" != "success" ]; then
+            echo "API tests failed"
+            exit 1
+          fi
+
+  test-e2e-articles:
+    name: Run E2E Article + Tag Tests
+    runs-on: ubuntu-latest
+    needs: lint
+    env:
+      TEST_TYPE: e2e
+      REPORT_PHASE: e2e-articles
+      BROWSER: DesktopChrome
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Prepare phase dirs
+        run: npm run reports:prepare
+
+      - name: Run parallel-safe E2E tests
+        id: e2e-articles
+        run: npm run test:dev:e2e:chrome:headless:parallel
+        continue-on-error: true
+
+      - name: Upload Playwright blob - E2E articles
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-blob-e2e-articles
+          path: test-results/raw/playwright-blob/e2e-articles/
+          retention-days: 14
+          if-no-files-found: ignore
+
+      - name: Upload Allure raw results - E2E articles
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: allure-results-e2e-articles
+          path: test-results/raw/allure/e2e-articles/
+          retention-days: 30
+          if-no-files-found: ignore
+
+      - name: Upload Ortoni raw results - E2E articles
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ortoni-results-e2e-articles
+          path: test-results/raw/ortoni/e2e-articles/
+          retention-days: 30
+          if-no-files-found: ignore
+
+      - name: Fail job if article/tag tests failed
+        if: always()
+        run: |
+          if [ "${{ steps.e2e-articles.outcome }}" != "success" ]; then
+            echo "E2E article/tag tests failed"
+            exit 1
+          fi
+
+  test-e2e-settings:
+    name: Run E2E Settings Tests
+    runs-on: ubuntu-latest
+    needs: lint
+    env:
+      TEST_TYPE: e2e
+      REPORT_PHASE: e2e-settings
+      BROWSER: DesktopChrome
+      PARALLEL: "false"
+      WORKERS: "1"
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Prepare phase dirs
+        run: npm run reports:prepare
+
+      - name: Run settings E2E tests
+        id: e2e-settings
+        run: npm run test:dev:e2e:chrome:settings:headless
+        continue-on-error: true
+
+      - name: Upload Playwright blob - E2E settings
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-blob-e2e-settings
+          path: test-results/raw/playwright-blob/e2e-settings/
+          retention-days: 14
+          if-no-files-found: ignore
+
+      - name: Upload Allure raw results - E2E settings
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: allure-results-e2e-settings
+          path: test-results/raw/allure/e2e-settings/
+          retention-days: 30
+          if-no-files-found: ignore
+
+      - name: Upload Ortoni raw results - E2E settings
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ortoni-results-e2e-settings
+          path: test-results/raw/ortoni/e2e-settings/
+          retention-days: 30
+          if-no-files-found: ignore
+
+      - name: Fail job if settings tests failed
+        if: always()
+        run: |
+          if [ "${{ steps.e2e-settings.outcome }}" != "success" ]; then
+            echo "E2E settings tests failed"
+            exit 1
+          fi
+
+  merge-reports:
+    name: Merge Reports
+    runs-on: ubuntu-latest
+    needs: [test-api, test-e2e-articles, test-e2e-settings]
+    if: always()
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Rebuild sqlite3 for Ortoni
+        run: npm run rebuild:sqlite3
+        continue-on-error: true
+
+      - name: Prepare empty merge workspace
+        run: |
+          rm -rf test-results
+          mkdir -p \
+            test-results/raw/playwright-blob/api \
+            test-results/raw/playwright-blob/e2e-articles \
+            test-results/raw/playwright-blob/e2e-settings \
+            test-results/raw/allure/api \
+            test-results/raw/allure/e2e-articles \
+            test-results/raw/allure/e2e-settings \
+            test-results/raw/ortoni/api \
+            test-results/raw/ortoni/e2e-articles \
+            test-results/raw/ortoni/e2e-settings \
+            test-results/history
+
+      - name: Download Playwright blobs
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          pattern: playwright-blob-*
+          path: test-results/raw/playwright-blob/
+          merge-multiple: false
+
+      - name: Normalize Playwright blob layout
+        run: |
+          # download-artifact may nest as playwright-blob-api/...
+          for phase in api e2e-articles e2e-settings; do
+            src="test-results/raw/playwright-blob/playwright-blob-${phase}"
+            dest="test-results/raw/playwright-blob/${phase}"
+            if [ -d "$src" ]; then
+              mkdir -p "$dest"
+              cp -R "$src"/. "$dest"/ || true
+            fi
+          done
+          find test-results/raw/playwright-blob -name '*.zip' -print
+
+      - name: Download Allure raw results
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          pattern: allure-results-*
+          path: test-results/raw/allure/
+          merge-multiple: false
+
+      - name: Normalize Allure layout
+        run: |
+          for phase in api e2e-articles e2e-settings; do
+            src="test-results/raw/allure/allure-results-${phase}"
+            dest="test-results/raw/allure/${phase}"
+            if [ -d "$src" ]; then
+              mkdir -p "$dest"
+              cp -R "$src"/. "$dest"/ || true
+            fi
+          done
+
+      - name: Download Ortoni raw results
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          pattern: ortoni-results-*
+          path: test-results/raw/ortoni/
+          merge-multiple: false
+
+      - name: Normalize Ortoni layout
+        run: |
+          for phase in api e2e-articles e2e-settings; do
+            src="test-results/raw/ortoni/ortoni-results-${phase}"
+            dest="test-results/raw/ortoni/${phase}"
+            if [ -d "$src" ]; then
+              mkdir -p "$dest"
+              cp -R "$src"/. "$dest"/ || true
+            fi
+          done
+
+      - name: Merge all reports
+        run: npm run reports:merge
+        continue-on-error: true
+
+      - name: Archive under history run folder
+        env:
+          RUN_ID: ci-${{ github.run_id }}-${{ github.run_attempt }}
+        run: npm run reports:archive
+        continue-on-error: true
+
+      - name: Upload Playwright HTML report (combined)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-combined
+          path: test-results/playwright-report/
+          retention-days: 30
+          if-no-files-found: ignore
+
+      - name: Upload Allure report (combined)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: allure-report-combined
+          path: test-results/allure-report/
+          retention-days: 30
+          if-no-files-found: ignore
+
+      - name: Upload Ortoni report (combined)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ortoni-report-combined
+          path: test-results/ortoni-report/
+          retention-days: 30
+          if-no-files-found: ignore
+
+  check-status:
+    name: Check Test Status
+    runs-on: ubuntu-latest
+    needs: [lint, test-api, test-e2e-articles, test-e2e-settings, merge-reports]
+    if: always()
+    steps:
+      - name: Require lint and all test jobs success
+        run: |
+          echo "lint=${{ needs.lint.result }}"
+          echo "api=${{ needs.test-api.result }}"
+          echo "e2e-articles=${{ needs.test-e2e-articles.result }}"
+          echo "e2e-settings=${{ needs.test-e2e-settings.result }}"
+          echo "merge=${{ needs.merge-reports.result }}"
+          if [ "${{ needs.lint.result }}" != "success" ] || \
+             [ "${{ needs.test-api.result }}" != "success" ] || \
+             [ "${{ needs.test-e2e-articles.result }}" != "success" ] || \
+             [ "${{ needs.test-e2e-settings.result }}" != "success" ]; then
+            echo "One or more required CI jobs failed"
+            exit 1
+          fi
+          echo "All required CI test jobs passed"
+          if [ "${{ needs.merge-reports.result }}" != "success" ]; then
+            echo "Warning: merge-reports job did not succeed (reports may be incomplete)"
+          fi

@@ -1,0 +1,16 @@
+{
+  "auth": {
+    "login": "/api/users/login",
+    "register": "/api/users"
+  },
+  "user": {
+    "current": "/api/user"
+  },
+  "articles": {
+    "create": "/api/articles",
+    "list": "/api/articles",
+    "getByArticleId": "/api/articles/{articleId}",
+    "updateByArticleId": "/api/articles/{articleId}",
+    "deleteByArticleId": "/api/articles/{articleId}"
+  }
+}
