@@ -25,10 +25,6 @@ npm run precommit:check
 | `setup.sh` / `npm run setup`                                                      | Install deps, Playwright browsers, `.env`, Husky hooks, sqlite3                                                      |
 | `./all-test-run.sh` / `npm run test:all:run` / `npm run test:all:headed:parallel` | Full suite: API + articles/tags (Chrome headed, 8 workers), then settings (1 worker); merge reports and open locally |
 
-> **Expected failure (by design):** `CONDUIT-TC-0019` — _Verify that invalid profile picture URL should not be accepted_ — uses Playwright `test.fail()` so the assertion still documents the product defect (invalid URL accepted → `/profile`), while the **suite / CI job can stay green**. Reports still show the case as an expected failure. If TC-0019 unexpectedly **passes**, CI fails — see [Known Gaps or Limitations](#known-gaps-or-limitations).
->
-> **Intentional skip (by design):** `CONDUIT-TC-0020` — _Verify that an invalid email address can not be accepted and the user can not update settings_ — is **`test.skip`’d** so Playwright HTML / Allure / Ortoni **include a Skipped row** in the consolidated report. Re-enable the test when validating invalid-email rejection on the web application.
-
 ## Prerequisites
 
 | Requirement  | Details                                                                                                                           |
@@ -563,8 +559,6 @@ npm run test:dev:e2e:chrome:settings:headless
 npm run test:dev:e2e:chrome:settings:ui
 ```
 
-`CONDUIT-TC-0019` (invalid profile picture URL) is **expected to fail** on the current web application. `CONDUIT-TC-0020` (invalid email) is **intentionally skipped** so reports show Skipped — see [Known Gaps or Limitations](#known-gaps-or-limitations).
-
 ### API-Only / UI Mode / Debug
 
 ```bash
@@ -987,37 +981,6 @@ CI=true HEADLESS=true ./all-test-run.sh
 | TC-0020 shows as **Skipped**                | **Expected** — intentional skip so reports demonstrate skipped-test inclusion                                                 |
 | TC-0020 shows as **Passed**                 | Unexpected while `test.skip` is in place — check for a local edit that re-enabled the test                                    |
 | CI artifact download empty                  | Download `*-report-combined` or per-phase `playwright-blob-*` / `allure-results-*` / `ortoni-results-*` artifacts             |
-
-## Submission Instructions
-
-Checklist:
-
-- [ ] Code pushed to GitHub
-- [ ] GitHub Actions workflows visible under **Actions** (see [GitHub Actions CI/CD](#github-actions-cicd))
-- [ ] Repository secret `ENV_FILE` set to full `.env` contents, or dedicated CI email secrets/variables configured
-- [ ] Repository variables/secrets configured if fixed-user auth is needed outside `ENV_FILE` (`DYNAMIC_USER=false`)
-- [ ] No `.env`, password, token, or auth state committed
-- [ ] README commands match `package.json`
-- [ ] Combined reports upload in CI (`playwright-report-combined`, `allure-report-combined`, `ortoni-report-combined`)
-- [ ] Repository URL emailed to the reviewer
-
-Suggested email:
-
-```text
-Subject: Playwright TypeScript Automation Assignment Submission
-
-Hello,
-
-I have completed the Playwright TypeScript automation assignment for the web application.
-
-GitHub repository:
-<REPOSITORY_URL>
-
-The repository includes UI and API automation, positive and negative test coverage, reusable authentication, dynamic test data, cross-browser configuration, reporting, parallel execution, and GitHub Actions CI/CD.
-
-Regards,
-Md Sakibur Rahman
-```
 
 ## Known Gaps or Limitations
 
