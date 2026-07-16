@@ -18,6 +18,11 @@ jobs:
     runs-on: ubuntu-latest
     # Always run so the job is not shown as "skipped" with no explanation.
     # Auto-merge only applies when the triggering CI run was a same-repo pull_request.
+    outputs:
+      should_merge: ${{ steps.gate.outputs.should_merge }}
+      reason: ${{ steps.gate.outputs.reason }}
+      pr_number: ${{ steps.pr.outputs.pr_number }}
+      merge_attempted: ${{ steps.merge-summary.outputs.merge_attempted }}
     steps:
       - name: Gate — only merge after successful PR CI
         id: gate
@@ -169,3 +174,74 @@ jobs:
               issue_number: prNumber,
               body,
             });
+
+      - name: Record merge outcome
+        if: always()
+        id: merge-summary
+        run: |
+          SHOULD="${{ steps.gate.outputs.should_merge }}"
+          PASSED="${{ steps.checks.outputs.all_passed }}"
+          if [ "${SHOULD}" = "true" ] && [ "${PASSED}" = "true" ]; then
+            echo "merge_attempted=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "merge_attempted=false" >> "${GITHUB_OUTPUT}"
+          fi
+
+  email-auto-merge-result:
+    name: Email Auto-Merge Result
+    runs-on: ubuntu-latest
+    needs: [auto-merge]
+    if: always()
+    env:
+      NODE_VERSION: "24"
+      ENV_FILE: ${{ secrets.ENV_FILE }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Write .env from GitHub secret
+        run: bash .github/scripts/write-env-from-secret.sh
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Download the consolidated reports ZIP produced by the triggering CI run.
+      # The ZIP is treated as a data attachment only — its contents are never
+      # executed (GitHub security guidance for cross-workflow artifacts).
+      - name: Download consolidated reports ZIP from CI run
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: consolidated-reports-zip
+          path: /tmp/auto-merge-reports
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Send email
+        if: always()
+        continue-on-error: true
+        env:
+          # Point the workflow URL in the email body to the triggering CI run
+          # so recipients can navigate directly to test results.
+          GITHUB_RUN_ID: ${{ github.event.workflow_run.id }}
+          GITHUB_REF_NAME: ${{ github.event.workflow_run.head_branch }}
+          GITHUB_SHA: ${{ github.event.workflow_run.head_sha }}
+          RUN_ID: auto-merge-${{ github.run_id }}-${{ github.run_attempt }}
+          EMAIL_REPORT_STATUS: >-
+            ci-conclusion=${{ github.event.workflow_run.conclusion }};
+            auto-merge=${{ needs.auto-merge.result }};
+            merge-attempted=${{ needs.auto-merge.outputs.merge_attempted }}
+          REPORTS_ZIP_PATH: /tmp/auto-merge-reports/consolidated-reports.zip
+        run: |
+          if [ ! -f src/config/environment/.env ]; then
+            echo "No .env from ENV_FILE secret — cannot email reports."
+            echo "Add repository secret ENV_FILE with full .env contents (including SMTP_PASS)."
+            exit 0
+          fi
+          npm run reports:email
