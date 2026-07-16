@@ -10,6 +10,9 @@ concurrency:
   group: pre-merge-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 env:
   NODE_VERSION: "24"
   ENVIRONMENT: DEV
