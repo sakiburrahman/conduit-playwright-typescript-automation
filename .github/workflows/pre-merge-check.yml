@@ -311,18 +311,6 @@ jobs:
           path: test-results/raw/playwright-blob/
           merge-multiple: false
 
-      - name: Normalize Playwright blob layout
-        run: |
-          for phase in api e2e-articles e2e-settings; do
-            src="test-results/raw/playwright-blob/pre-merge-playwright-blob-${phase}"
-            dest="test-results/raw/playwright-blob/${phase}"
-            if [ -d "$src" ]; then
-              mkdir -p "$dest"
-              cp -R "$src"/. "$dest"/ || true
-            fi
-          done
-          find test-results/raw/playwright-blob -name '*.zip' -print
-
       - name: Download Allure raw results
         uses: actions/download-artifact@v4
         continue-on-error: true
@@ -330,17 +318,6 @@ jobs:
           pattern: pre-merge-allure-results-*
           path: test-results/raw/allure/
           merge-multiple: false
-
-      - name: Normalize Allure layout
-        run: |
-          for phase in api e2e-articles e2e-settings; do
-            src="test-results/raw/allure/pre-merge-allure-results-${phase}"
-            dest="test-results/raw/allure/${phase}"
-            if [ -d "$src" ]; then
-              mkdir -p "$dest"
-              cp -R "$src"/. "$dest"/ || true
-            fi
-          done
 
       - name: Download Ortoni raw results
         uses: actions/download-artifact@v4
@@ -350,16 +327,24 @@ jobs:
           path: test-results/raw/ortoni/
           merge-multiple: false
 
-      - name: Normalize Ortoni layout
+      - name: Normalize artifact layouts
         run: |
-          for phase in api e2e-articles e2e-settings; do
-            src="test-results/raw/ortoni/pre-merge-ortoni-results-${phase}"
-            dest="test-results/raw/ortoni/${phase}"
-            if [ -d "$src" ]; then
-              mkdir -p "$dest"
-              cp -R "$src"/. "$dest"/ || true
-            fi
-          done
+          normalize_phase_dir() {
+            local artifact_prefix="$1"
+            local dest_base="$2"
+            for phase in api e2e-articles e2e-settings; do
+              local src="${dest_base}/${artifact_prefix}-${phase}"
+              local dest="${dest_base}/${phase}"
+              if [ -d "${src}" ]; then
+                mkdir -p "${dest}"
+                cp -R "${src}"/. "${dest}"/ || true
+              fi
+            done
+          }
+          normalize_phase_dir "pre-merge-playwright-blob" "test-results/raw/playwright-blob"
+          normalize_phase_dir "pre-merge-allure-results"  "test-results/raw/allure"
+          normalize_phase_dir "pre-merge-ortoni-results"  "test-results/raw/ortoni"
+          find test-results/raw/playwright-blob -name '*.zip' -print
 
       - name: Merge all reports
         run: npm run reports:merge
@@ -373,19 +358,7 @@ jobs:
 
       - name: Create consolidated reports ZIP
         if: always()
-        run: |
-          cd test-results
-          DIRS=()
-          [ -d playwright-report ] && DIRS+=(playwright-report)
-          [ -d allure-report ]     && DIRS+=(allure-report)
-          [ -d ortoni-report ]     && DIRS+=(ortoni-report)
-          if [ "${#DIRS[@]}" -gt 0 ]; then
-            zip -r -q consolidated-reports.zip "${DIRS[@]}"
-            echo "Created consolidated-reports.zip (${#DIRS[@]} report dir(s))"
-            ls -lh consolidated-reports.zip
-          else
-            echo "No merged report directories found; consolidated ZIP was not created"
-          fi
+        run: bash .github/scripts/create-consolidated-zip.sh
 
       - name: Upload consolidated reports ZIP
         if: always()

@@ -213,7 +213,9 @@ jobs:
 
       # Download the consolidated reports ZIP produced by the triggering CI run.
       # The ZIP is treated as a data attachment only — its contents are never
-      # executed (GitHub security guidance for cross-workflow artifacts).
+      # executed.  GitHub's security guidance for untrusted artifacts from
+      # another workflow run warns against executing downloaded content:
+      # https://docs.github.com/en/actions/security-for-github-actions/security-guides/security-hardening-for-github-actions#cross-workflow-artifact-theft
       - name: Download consolidated reports ZIP from CI run
         uses: actions/download-artifact@v4
         continue-on-error: true

@@ -404,19 +404,7 @@ jobs:
 
       - name: Create consolidated reports ZIP
         if: always()
-        run: |
-          cd test-results
-          DIRS=()
-          [ -d playwright-report ] && DIRS+=(playwright-report)
-          [ -d allure-report ]     && DIRS+=(allure-report)
-          [ -d ortoni-report ]     && DIRS+=(ortoni-report)
-          if [ "${#DIRS[@]}" -gt 0 ]; then
-            zip -r -q consolidated-reports.zip "${DIRS[@]}"
-            echo "Created consolidated-reports.zip (${#DIRS[@]} report dir(s))"
-            ls -lh consolidated-reports.zip
-          else
-            echo "No merged report directories found; consolidated ZIP was not created"
-          fi
+        run: bash .github/scripts/create-consolidated-zip.sh
 
       - name: Upload consolidated reports ZIP
         if: always()
