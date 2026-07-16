@@ -332,6 +332,7 @@ jobs:
           normalize_phase_dir() {
             local artifact_prefix="$1"
             local dest_base="$2"
+            local phase
             for phase in api e2e-articles e2e-settings; do
               local src="${dest_base}/${artifact_prefix}-${phase}"
               local dest="${dest_base}/${phase}"

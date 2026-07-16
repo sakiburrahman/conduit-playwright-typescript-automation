@@ -15,9 +15,9 @@ ZIP_PATH="${RESULTS_DIR}/consolidated-reports.zip"
 cd "${RESULTS_DIR}"
 
 DIRS=()
-[ -d playwright-report ] && DIRS+=(playwright-report)
-[ -d allure-report ]     && DIRS+=(allure-report)
-[ -d ortoni-report ]     && DIRS+=(ortoni-report)
+if [ -d playwright-report ]; then DIRS+=(playwright-report); fi
+if [ -d allure-report ];     then DIRS+=(allure-report);     fi
+if [ -d ortoni-report ];     then DIRS+=(ortoni-report);     fi
 
 if [ "${#DIRS[@]}" -gt 0 ]; then
   zip -r -q consolidated-reports.zip "${DIRS[@]}"
