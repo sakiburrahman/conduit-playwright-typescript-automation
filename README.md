@@ -73,7 +73,7 @@ Then bootstrap with `./setup.sh` (see [Installation](#installation)).
   - [Runtime Parameters](#runtime-parameters)
 - [Running Tests](#running-tests)
   - [Serial vs parallel execution](#serial-vs-parallel-execution)
-  - [Note: `package.json` suite scripts always set `DYNAMIC_USER=true`](#note-packagejson-suite-scripts-always-set-dynamic_usertrue)
+  - [Note: `DYNAMIC_USER` on suite scripts](#note-dynamic_user-on-suite-scripts)
 - [Test Tags](#test-tags)
 - [Test Coverage](#test-coverage)
 - [Reports and Traceability](#reports-and-traceability)
@@ -236,7 +236,7 @@ The Global Feed card does not display the full article body. The body is validat
 3. For username updates, validate the Profile page heading and navbar username.
 4. Restore original settings.
 5. Settings tests run with **one worker** because they mutate shared user state.
-6. **`CONDUIT-TC-0019` (invalid profile picture URL)** — **expected to fail** via `test.fail()`. The web application still accepts the invalid URL; the test documents that defect. Suite/CI remain green while the failure is expected; unexpected **pass** fails CI — see [Known Gaps or Limitations](#known-gaps-or-limitations).
+6. **`CONDUIT-TC-0019` (invalid profile picture URL)** — **expected to fail** via `test.fail()`. The web application still accepts the invalid URL; the test documents that defect. Suite/CI remain green while the failure is expected; unexpected **pass** fails CI.
 7. **`CONDUIT-TC-0020` (invalid email)** — **intentionally SKIPPED** (`test.skip`) so consolidated reports include a **Skipped** result. Re-enable when validating invalid-email rejection — see [Known Gaps or Limitations](#known-gaps-or-limitations).
 
 ### QA-Driven Assertions
@@ -375,6 +375,18 @@ DEV_PASSWORD=MySecurePassword
 
 Do not commit `.env`. Only `.env.example` belongs in git.
 
+Optional email after a full suite / CI merge (see [GitHub Actions CI/CD](#github-actions-cicd)):
+
+```env
+SEND_EMAIL_TO_USER=true
+SEND_EMAIL_TO_USER_EMAIL=you@example.com
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=you@example.com
+SMTP_PASS=your-app-password
+SMTP_FROM=you@example.com
+```
+
 ### Runtime Parameters
 
 Defaults in `src/config/defaultConfig/testConfig.ts` (`runtimeDefaults`):
@@ -408,10 +420,10 @@ By default, browser suites target **Google Chrome**. After a **standalone** run,
 
 Execution mode is controlled by `PARALLEL` and `WORKERS` (via npm script names or env), resolved in `envConfig.resolveExecutionConfig()` and applied in `playwright.config.ts`.
 
-| Mode         | How it works                                               | Auth (`DYNAMIC_USER`)                                  |
-| ------------ | ---------------------------------------------------------- | ------------------------------------------------------ |
-| **Parallel** | `PARALLEL=true` → `fullyParallel: true`, `workers` ≤ **8** | **New signup every run** (`true` in all suite scripts) |
-| **Serial**   | `PARALLEL=false` → `workers: 1`                            | **New signup every run** (same)                        |
+| Mode         | How it works                                               | Auth (`DYNAMIC_USER`)                                                                |
+| ------------ | ---------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| **Parallel** | `PARALLEL=true` → `fullyParallel: true`, `workers` ≤ **8** | Default scripts: **new signup** (`DYNAMIC_USER=true`); use `*:fixed` for `.env` user |
+| **Serial**   | `PARALLEL=false` → `workers: 1`                            | Same auth options as parallel                                                        |
 
 #### Note: `DYNAMIC_USER` on suite scripts
 
@@ -760,6 +772,7 @@ CI=true HEADLESS=true ./all-test-run.sh
 npm run reports:prepare
 npm run reports:merge
 npm run reports:archive
+npm run reports:email
 npm run reports:open
 
 npm run open:playwright-report
@@ -770,7 +783,7 @@ npm run clean:history
 npm run rebuild:sqlite3
 ```
 
-`clean:reports` clears latest working folders (including `raw/`). Use `clean:history` to delete `test-results/history/`. History keeps the latest **10** complete `RUN_ID` folders.
+`clean:reports` clears latest working folders (including `raw/`). Use `clean:history` to delete `test-results/history/`. History keeps the latest **10** complete `RUN_ID` folders. Use `npm run reports:email` (or a full suite with `SEND_EMAIL_TO_USER=true`) to email the combined reports.
 
 Do not upload `.env` or `playwright/.auth/*` as artifacts.
 
@@ -787,7 +800,7 @@ Do not upload `.env` or `playwright/.auth/*` as artifacts.
 │   │   └── environment/
 │   ├── pageActions/
 │   ├── pageLocators/
-│   └── utils/                   # api helpers, data-generator, reports-helper
+│   └── utils/                   # api helpers, data-generator, reports-helper, email-report-helper
 ├── tests/
 │   ├── api-tests/
 │   └── e2e-tests/
@@ -942,23 +955,25 @@ CI=true HEADLESS=true ./all-test-run.sh
 | Playwright report `EADDRINUSE` on 9323 | `npm run open:playwright-report` or `lsof -ti :9323 \| xargs kill`                                                            |
 | Ortoni / `sqlite3` in CI               | `npm ci` on Ubuntu usually builds bindings; merge job runs `npm rebuild sqlite3`                                              |
 | Auto-merge skipped                     | Branch protection, draft PR, failing checks, or merge conflicts                                                               |
-| TC-0019 red in CI                      | **Expected** on the current web application — see [Known Gaps or Limitations](#known-gaps-or-limitations)                     |
+| TC-0019 expected-fail in reports       | **Expected** via `test.fail()` — CI job stays green; see [Known Gaps or Limitations](#known-gaps-or-limitations)              |
+| Email step skipped in Merge Reports    | Set `SEND_EMAIL_TO_USER=true` plus SMTP secrets/vars (Gmail needs an App Password)                                            |
 | TC-0020 skipped in reports             | **Expected** — intentional `test.skip` for Skipped visibility in Playwright / Allure / Ortoni                                 |
 
 ## Troubleshooting
 
-| Issue                        | Fix                                                                                                               |
-| ---------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| Ortoni / `sqlite3`           | `npm rebuild sqlite3`                                                                                             |
-| Auth / username mismatch     | Confirm `.env` credentials when `DYNAMIC_USER=false`                                                              |
-| Blank E2E page               | Confirm `user-setup` produced `playwright/.auth/auth.json`                                                        |
-| Missing browser              | `npx playwright install`                                                                                          |
-| Settings flaking in parallel | Run `npm run test:dev:e2e:chrome:settings` only                                                                   |
-| TC-0019 shows as **Failed**  | **Expected** — the web application accepts invalid profile URLs and leaves Settings; failure catches the defect   |
-| TC-0019 shows as **Passed**  | Unexpected for the current web application — re-run settings; check for product change or stale report            |
-| TC-0020 shows as **Skipped** | **Expected** — intentional skip so reports demonstrate skipped-test inclusion                                     |
-| TC-0020 shows as **Passed**  | Unexpected while `test.skip` is in place — check for a local edit that re-enabled the test                        |
-| CI artifact download empty   | Download `*-report-combined` or per-phase `playwright-blob-*` / `allure-results-*` / `ortoni-results-*` artifacts |
+| Issue                                       | Fix                                                                                                               |
+| ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| Ortoni / `sqlite3`                          | `npm rebuild sqlite3`                                                                                             |
+| Auth / username mismatch                    | Confirm `.env` credentials when `DYNAMIC_USER=false`                                                              |
+| Blank E2E page                              | Confirm `user-setup` produced `playwright/.auth/auth.json`                                                        |
+| Missing browser                             | `npx playwright install`                                                                                          |
+| Settings flaking in parallel                | Run `npm run test:dev:e2e:chrome:settings` only                                                                   |
+| TC-0019 shows as **Failed** / expected-fail | **Expected** — `test.fail()` documents the invalid profile URL defect; suite/CI stay green                        |
+| TC-0019 shows as unexpected **Passed**      | App may have been fixed — remove `test.fail` after confirming, or check a stale report                            |
+| Report email not received                   | Confirm `SEND_EMAIL_TO_USER=true`, recipient, and SMTP App Password (local `.env` or CI secrets)                  |
+| TC-0020 shows as **Skipped**                | **Expected** — intentional skip so reports demonstrate skipped-test inclusion                                     |
+| TC-0020 shows as **Passed**                 | Unexpected while `test.skip` is in place — check for a local edit that re-enabled the test                        |
+| CI artifact download empty                  | Download `*-report-combined` or per-phase `playwright-blob-*` / `allure-results-*` / `ortoni-results-*` artifacts |
 
 ## Submission Instructions
 
@@ -967,6 +982,7 @@ Checklist:
 - [ ] Code pushed to GitHub
 - [ ] GitHub Actions workflows visible under **Actions** (see [GitHub Actions CI/CD](#github-actions-cicd))
 - [ ] Repository variables/secrets configured if fixed-user auth is needed (`DYNAMIC_USER=false`)
+- [ ] Email report secrets configured if you want CI to send reports (`SEND_EMAIL_TO_USER`, SMTP_*)
 - [ ] No `.env`, password, token, or auth state committed
 - [ ] README commands match `package.json`
 - [ ] Combined reports upload in CI (`playwright-report-combined`, `allure-report-combined`, `ortoni-report-combined`)
@@ -1018,4 +1034,4 @@ Remaining settings cases (TC-0016–0018) still run. **TC-0020** remains **inten
 - The web application `/?tag=` UI may still show mixed cards when the Articles API filters correctly (filter specs annotate this behavior).
 - Settings form fields often do not hydrate from the server; tests fill values explicitly.
 - Create Article E2E cleanup uses UI delete; Edit/Delete use API cleanup after API setup.
-- Full suite pass/fail is environment-dependent; this README does not claim all tests currently pass (TC-0019 is expected red; TC-0020 is expected skipped).
+- Full suite / CI can stay green with TC-0019 marked `test.fail` (expected product defect) and TC-0020 skipped; reports still show those outcomes.
