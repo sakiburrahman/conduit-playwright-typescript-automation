@@ -337,7 +337,7 @@ jobs:
               local dest="${dest_base}/${phase}"
               if [ -d "${src}" ]; then
                 mkdir -p "${dest}"
-                cp -R "${src}"/. "${dest}"/ || true
+                cp -R "${src}"/. "${dest}"/ || echo "Warning: Failed to copy ${src} to ${dest}"
               fi
             done
           }
@@ -473,7 +473,7 @@ jobs:
           echo "e2e-settings-tests:  ${SETTINGS}"
 
           FAILED=0
-          for result in "${QUALITY}" "${API}" "${ARTICLES}" "${SETTINGS}"; do
+          for result in "$QUALITY" "$API" "$ARTICLES" "$SETTINGS"; do
             if [ "${result}" != "success" ]; then
               FAILED=1
             fi

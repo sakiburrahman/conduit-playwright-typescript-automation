@@ -140,8 +140,11 @@ function buildHtmlBody(options: {
  * it.  When the env var is absent, or when the pointed-to file does not exist,
  * we fall back to creating a new ZIP from the local report directories.
  *
- * Returns `{ path, owned }` where `owned` is true only when this function
- * created the ZIP and the caller should delete it after sending.
+ * @returns `{ path, owned }` where `path` is the resolved ZIP file path (or
+ * `null` when no attachment should be sent, e.g. the file exceeds the size
+ * limit or no report directories exist), and `owned` is `true` only when this
+ * function created the ZIP — meaning the caller is responsible for deleting it
+ * after use.
  */
 function resolveReportsZip(): { path: string | null; owned: boolean } {
   const envZip = process.env.REPORTS_ZIP_PATH?.trim();
