@@ -29,8 +29,8 @@ npm run precommit:check
 
 | Requirement  | Details                                                                                                                           |
 | ------------ | --------------------------------------------------------------------------------------------------------------------------------- |
-| **Node.js**  | **18+** required · **24** recommended (matches local / CI)                                                                        |
-| **npm**      | **9+** (current verified: **11.7**)                                                                                               |
+| **Node.js**  | **22+** required · **24** recommended (matches local / CI)                                                                        |
+| **npm**      | **10++** (current verified: **11.7**)                                                                                             |
 | **Git**      | Clone, hooks (`husky` / `prepare`)                                                                                                |
 | **OS**       | macOS, Linux, or Windows (bash / Git Bash for `./setup.sh` and `./all-test-run.sh`)                                               |
 | **Browsers** | Installed by `./setup.sh` (Chromium by default; Chrome used headed locally). Use `./setup.sh --browsers-all` for Firefox + WebKit |
@@ -40,7 +40,7 @@ npm run precommit:check
 
 | Tool                          | Why                                                                                   |
 | ----------------------------- | ------------------------------------------------------------------------------------- |
-| **Java (JRE 8+)**             | Required by Allure CLI to generate/open the Allure HTML report                        |
+| **Java (21+)**                | Required by Allure CLI to generate/open the Allure HTML report                        |
 | **Google Chrome**             | Headed Chrome channel (`channel: "chrome"`); Playwright Chromium is used for headless |
 | **Build tools for `sqlite3`** | Needed if Ortoni native bindings fail (`npm run rebuild:sqlite3`)                     |
 
